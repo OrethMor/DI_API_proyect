@@ -1,0 +1,182 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>NASA data</title>
+    <script>
+        //Al hacer una petición, pasar la clave: 0NBHYtbRI8SlVDwRL6aNChannJftnr99sTuIyezy
+        //Ejemplo: https://api.nasa.gov/planetary/apod?api_key=0NBHYtbRI8SlVDwRL6aNChannJftnr99sTuIyezy
+
+        var httpRequest = new XMLHttpRequest();
+
+        window.onload = function (){
+            descargaFondo();
+
+            var boton = document.getElementById('boton');
+            boton.onclick = asteroideFecha;
+        }
+
+        function descargaFondo() {
+            // Obtener la instancia del objeto XMLHttpRequest
+            if(window.XMLHttpRequest) {
+                peticion_http = new XMLHttpRequest();
+            }
+            else if(window.ActiveXObject) {
+                peticion_http = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+
+            // Preparar la funcion de respuesta
+            peticion_http.onreadystatechange = muestraFondo;
+
+            // Realizar peticion HTTP
+            peticion_http.open('GET', 'https://api.nasa.gov/planetary/apod?api_key=0NBHYtbRI8SlVDwRL6aNChannJftnr99sTuIyezy', true);
+            peticion_http.send(null);
+
+            function muestraFondo() {
+                if(peticion_http.readyState == 4) {
+                    if(peticion_http.status == 200) {
+                        var apod = JSON.parse(peticion_http.responseText);
+                        
+                        document.body.style.backgroundImage = "url('"+apod.url+"')";
+                        console.log("apod", apod);
+
+                        var titleImg = document.getElementById('imgInfoHeader');
+                        titleImg.textContent = "Nasa's picture of the day: " + apod.title;
+                        var infoImg = document.getElementById('imgInfo');
+                        infoImg.textContent = apod.explanation;
+                    }
+                }
+            }
+        }
+
+        function asteroideFecha () {
+            var fecha = document.getElementById('fecha').value;
+
+            console.log(fecha);
+            // Preparar la funcion de respuesta
+            peticion_http.onreadystatechange = muestraAsteroides;
+
+            // Realizar peticion HTTP
+            peticion_http.open('GET', 'https://api.nasa.gov/neo/rest/v1/feed?start_date=' + fecha + '&api_key=0NBHYtbRI8SlVDwRL6aNChannJftnr99sTuIyezy', true);
+            peticion_http.send(null);
+
+            function muestraAsteroides() {
+                
+                if(peticion_http.readyState == 4) {
+                    if(peticion_http.status == 200) {
+                        var info = JSON.parse(peticion_http.responseText);
+                        console.log(info);
+                        var dayAsteroids = info.near_earth_objects[fecha];
+
+                        var info = document.getElementById('info');
+                        info.textContent = "";
+                        var parrafo = document.createElement('p');
+                        var str = "El " + fecha + " pasaron " + dayAsteroids.length + " asteroides cerca de la Tierra.";
+                        str += "\nLista de nombres:\n";
+                        parrafo.textContent = str;
+                        info.appendChild(parrafo);
+
+                        var lista = document.createElement('ul');
+                        for (let i = 0; i < dayAsteroids.length; i++) {
+                            const asteroid = dayAsteroids[i];
+                            var nombre = document.createElement('li');
+                            var link = document.createElement('a');
+
+                            link.textContent = asteroid.name;
+                            link.setAttribute('href', asteroid.nasa_jpl_url);
+
+                            nombre.appendChild(link);
+                            lista.appendChild(nombre);
+
+                            var datos = document.createElement('ul');
+                            var dato = document.createElement('li');
+
+                            dato.textContent = "Distancia a la que pasó: " + asteroid.close_approach_data[0].miss_distance.kilometers + "km."
+                            datos.appendChild(dato);
+
+                            dato = document.createElement('li');
+
+                            dato.textContent = "Diámetro aproximado: Entre " + Math.round(asteroid.estimated_diameter.kilometers.estimated_diameter_min * 1000)/1000
+                              + " y " + Math.round(asteroid.estimated_diameter.kilometers.estimated_diameter_max * 1000)/1000 + "km."
+                            datos.appendChild(dato);
+
+                            dato = document.createElement('li');
+
+                            dato.textContent = "Magnitud absoluta: " + asteroid.absolute_magnitude_h + "."
+                            datos.appendChild(dato);
+
+                            lista.appendChild(datos);
+                        }
+                        info.appendChild(lista);
+                    }
+                }
+            }
+        }
+
+    </script>
+    <style>
+        body {
+            background-size: 100%;
+            background-repeat: repeat-y;
+            background-attachment: local;
+        }
+
+        #contenido {
+            padding: 20px 0 0 0;
+            position: relative;
+        }
+
+        #dialogDiv {
+            min-width: 400px;
+            width: 40%;
+            min-height: 200px;
+            background-color: rgba(218, 218, 218, 0.808);
+            border-radius: 10%;
+            margin: auto;
+            position: relative;
+            padding: 30px;
+        }
+
+        #titleDiv {
+            text-align: center;
+        }
+
+        #formDiv {
+            text-align: center;
+        }
+
+        #apodImgInfo {
+            color: white;
+            padding: 0 20px;
+        }
+
+        #apodImgInfo p {
+            font-size: 12px;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="contenido">
+        <div id="dialogDiv">
+            <div id="titleDiv">
+            </div>
+            <div id="formDiv">
+                <h1>Introduzca una fecha</h1>
+                <input type="date" name="fecha" id="fecha" placeholder="AAAA-MM-DD">
+                <br>
+                <br>
+                <button id="boton">Buscar asteroides</button>
+            </div>
+            <div id="info">
+
+            </div>
+        </div>
+    </div>
+    <div id="apodImgInfo">
+        <h5 id="imgInfoHeader"></h5>
+        <p id="imgInfo"></p>
+    </div>
+</body>
+</html>
