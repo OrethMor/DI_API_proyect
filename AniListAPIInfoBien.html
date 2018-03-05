@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>AniList API Info</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="screen" href="main.css" />
+    <script type="text/javascript">
+
+        var homeDisplay = {
+            populares : { 
+                texto : "Los más populares", 
+                query : `
+query ($isAdult: Boolean) { 
+  Page(page: 1, perPage: 10) {
+      media (isAdult: $isAdult, type: ANIME, sort: [SCORE_DESC]) {
+        coverImage {
+            large
+        }
+        title {
+            romaji
+            english
+            native
+        }
+        genres
+        averageScore
+        popularity
+        startDate {
+            year
+            month
+            day
+        }
+      }
+  }
+}
+` },
+            capitulos : { 
+                texto : "Últimos capítulos subidos", 
+                query : `
+query ($isAdult: Boolean) { 
+  Page(page: 1, perPage: 10) {
+      media (isAdult: $isAdult, type: ANIME, sort: [UPDATED_AT_DESC]) {
+        coverImage {
+            large
+        }
+        title {
+            romaji
+            english
+            native
+        }
+        genres
+        averageScore
+        popularity
+        startDate {
+            year
+            month
+            day
+        }
+      }
+  }
+}
+` },
+            terminados : { 
+                texto : "Últimas series terminadas", 
+                query : `
+query ($isAdult: Boolean) { 
+  Page(page: 1, perPage: 10) {
+      media (isAdult: $isAdult, type: ANIME, sort: [END_DATE_DESC]) {
+        coverImage {
+            large
+        }
+        title {
+            romaji
+            english
+            native
+        }
+        genres
+        averageScore
+        popularity
+        startDate {
+            year
+            month
+            day
+        }
+      }
+  }
+}
+` }
+        };
+
+        var content;
+        var searchInput;
+
+        //Idea: Meter los div como objetos, para hacer sus funciones con el prototype.
+
+        window.onload = function () {
+
+            content = document.getElementById('content');
+
+            searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('keypress', ifEnterSearch);
+
+            var searchImage = document.getElementById('searchImage');
+            searchImage.addEventListener('click', function () {
+                search(searchInput.value);
+            });
+            
+            loadHome();
+        }
+
+        function ifEnterSearch (event) {
+            if (event.keyCode == 13) {
+                this.blur();
+                search(this.value);
+            }
+        }
+
+        function search (value) {
+
+            query = `
+query ($isAdult: Boolean, $search: String) { 
+  Page(page: 1, perPage: 18) {
+      media (isAdult: $isAdult, search: $search, type: ANIME, sort: [SCORE_DESC]) {
+        coverImage {
+            large
+        }
+        title {
+            romaji
+            english
+            native
+        }
+        genres
+        averageScore
+        popularity
+        startDate {
+            year
+            month
+            day
+        }
+      }
+  }
+}
+`;
+            
+            removeChilds(content);
+            loadSearch(content, query, value);
+        }
+
+        function loadSearch (div, query, value) {
+
+            var variables = {
+                isAdult: false,
+                search: value
+            };
+
+            // Definir la configuración que necesitaremos para la petición a la API.
+            var url = 'https://graphql.anilist.co';
+            var options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    query: query,
+                    variables: variables
+                })
+            };
+
+            // Hacemos la petición HTTP a la API.
+            fetch(url, options).then(handleResponse)
+                            .then(handleData)
+                            .catch(handleError);
+
+            function handleResponse(response) {
+                return response.json().then(function (json) {
+                    return response.ok ? json : Promise.reject(json);
+                });
+            }
+
+            function handleData(data) {
+                /*    Aquí me he visto obligado a hacer una pequeña "ñapa". El objeto "data" tiene supuestamente
+                dentro un objeto "Page", que a su vez tiene "media", que es la información a la que quiero acceder,
+                sin embargo, cuando intento acceder a "Page", me da que no está definido. Así que he lo he
+                convertido a cadena para quitarle ese objeto "Page" y acceder directamente al contenido.    */
+                
+                console.log(data);
+                //console.log(JSON.stringify(data));
+                //console.log(data.Page);
+                
+                var dataString = JSON.stringify(data);
+                var animeMedia = JSON.parse(dataString.substring(16, dataString.length - 2));
+
+                fillContentWithResults(animeMedia.media);
+            }
+
+            function handleError(error) {
+                //alert('Error, hubo un problema con la petición.');
+                console.error(error);
+            }
+        }
+
+        function fillContentWithResults (results) {
+            var header = document.createElement('h2');
+            header.textContent = "Resultados de la búsqueda";
+
+            var resultDiv = document.createElement('div');
+            resultDiv.className = 'homeInfoDiv';
+
+            if (results.length > 0) {
+                resultDiv.style.height = (275 * (Math.round(results.length/2)) + 50) + 'px';
+                for (let i = 0; i < results.length; i++) {
+                    resultDiv.appendChild(createAnime(results[i]));
+                }
+            }
+            else {
+            }
+
+            content.appendChild(header);
+            content.appendChild(resultDiv);
+        }
+
+        function loadHome () {
+            removeChilds(content);
+            createHomeDiv(content, "populares");
+            createHomeDiv(content, "capitulos");
+            createHomeDiv(content, "terminados");
+        }
+
+        function removeChilds (container) {
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+        }
+
+        function createHomeDiv (container, display) {
+
+            var title = document.createElement('h2');
+            title.textContent = homeDisplay[display].texto;
+
+            var div = document.createElement('div');
+            div.className = "homeInfoDiv";
+            createDivContent(div);
+            fillHomeDivInfo(div, homeDisplay[display].query);
+            container.appendChild(title);
+            container.appendChild(div);
+        }
+
+        function createDivContent (div) {
+            
+            createSideDiv(div, false);
+            createSideDiv(div, true);
+        }
+
+        function createSideDiv (div, right) {
+            var sideDiv = document.createElement('div');
+            sideDiv.className = 'sideDiv' + (right ? ' right' : '');
+            sideDiv.addEventListener('mouseover', function () {
+                this.style.backgroundColor = 'rgba(0, 0, 0, 0.53)';
+            });
+            //sideDiv.addEventListener('click', right ? scrollRight : scrollLeft);
+            sideDiv.addEventListener('mouseout', function () {
+                this.style.backgroundColor = 'rgba(0, 0, 0, 0.253)';
+            });
+            div.appendChild(sideDiv);
+        }
+
+        function fillHomeDivInfo (div, query) {
+
+            var variables = {
+                isAdult: false
+            };
+
+            // Definir la configuración que necesitaremos para la petición a la API.
+            var url = 'https://graphql.anilist.co';
+            var options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    query: query,
+                    variables: variables
+                })
+            };
+
+            // Hacemos la petición HTTP a la API.
+            fetch(url, options).then(handleResponse)
+                            .then(handleData)
+                            .catch(handleError);
+
+            function handleResponse(response) {
+                return response.json().then(function (json) {
+                    return response.ok ? json : Promise.reject(json);
+                });
+            }
+
+            function handleData(data) {
+                /*    Aquí me he visto obligado a hacer una pequeña "ñapa". El objeto "data" tiene supuestamente
+                dentro un objeto "Page", que a su vez tiene "media", que es la información a la que quiero acceder,
+                sin embargo, cuando intento acceder a "Page", me da que no está definido. Así que he lo he
+                convertido a cadena para quitarle ese objeto "Page" y acceder directamente al contenido.    */
+                
+                //console.log(data);
+                //console.log(JSON.stringify(data));
+                //console.log(data.Page);
+                
+                var dataString = JSON.stringify(data);
+                var animeMedia = JSON.parse(dataString.substring(16, dataString.length - 2));
+
+                div.queryResult = [];
+
+                for (let i = 0; i < animeMedia.media.length; i++) {
+                    div.queryResult[i] = animeMedia.media[i];
+                }
+
+                div.appendChild(createAnime(div.queryResult[0]))
+                div.appendChild(createAnime(div.queryResult[1]))
+            }
+
+            function handleError(error) {
+                //alert('Error, hubo un problema con la petición.');
+                console.error(error);
+            }
+        }
+
+        function createAnime (result) {
+            var anime;
+            var portada;
+            var info;
+            var titulo;
+            var romaji;
+            var divPopularidad;
+            var popularidad;
+            var imgPopularidad;
+            var generos;
+            var link;
+
+            //index € [0, 9]
+            var animeInfo = result;
+            
+            anime = document.createElement('div');
+            portada = document.createElement('img');
+            info = document.createElement('div');
+            titulo = document.createElement('h4');
+            romaji = document.createElement('h5');
+            divPopularidad = document.createElement('div');
+            popularidad = document.createElement('div');
+            imgPopularidad = document.createElement('img');
+            generos = document.createElement('p');
+            link = document.createElement('a');
+
+            anime.className = 'anime';
+            portada.className = 'caratula';
+            info.className = 'info';
+            generos.className = 'mini';
+            popularidad.className = 'popularidad';
+
+            portada.src = animeInfo.coverImage.large;
+
+            if (animeInfo.title.english == "" || animeInfo.title.english == null) {
+                titulo.textContent = animeInfo.title.romaji;
+            }
+            else {
+                titulo.textContent = animeInfo.title.english;
+                romaji.textContent = animeInfo.title.romaji;
+            }
+
+            generos.textContent = "Generos: ";
+            for (let j = 0; j < animeInfo.genres.length; j++) {
+                generos.textContent += animeInfo.genres[j];
+                if (j < animeInfo.genres.length -1) {
+                    generos.textContent += ", ";
+                }
+                else {
+                    generos.textContent += ".";
+                }
+            }
+
+            //Recordar cambiar cuando lo suba a GitHub
+            imgPopularidad.src = 'Imagenes/popularidad.png';
+
+            popularidad.style.width = (120*animeInfo.averageScore/100) + "px";
+
+            anime.appendChild(portada);
+            anime.appendChild(info);
+
+            info.appendChild(titulo);
+            info.appendChild(romaji);
+            info.appendChild(generos);
+
+            divPopularidad.appendChild(popularidad);
+            divPopularidad.appendChild(imgPopularidad);
+
+            info.appendChild(divPopularidad);
+            info.appendChild(link);
+
+            anime.addEventListener('mouseover', function () {
+                this.style.backgroundColor = 'rgb(180,180,180,0.3)';
+            });
+
+            anime.addEventListener('mouseout', function () {
+                this.style.backgroundColor = 'rgb(255,255,255,0)';
+            });
+
+            return anime;
+        }
+        
+    </script>
+    <style>
+
+        body {
+            background-image: url('Imagenes/fondo.png');
+            background-color: black;
+        }
+
+        h2 {
+            padding-top: 20px;
+            font-family: 'Franklin Gothic Medium', Arial, sans-serif;
+        }
+
+        input {
+            height: 20px;
+            border-radius: 10px;
+            color: black;
+        }
+
+        .searchResult {
+            height: 275px;
+        }
+
+        .homeInfoDiv {
+            position: relative;
+            margin: auto;
+            width: 1000px;
+            height: 275px;
+            display: block;
+            z-index: 5;
+        }
+
+        .sideDiv {
+            position: absolute;
+            width: 50px;
+            height: 275px;
+            background-color: rgba(0, 0, 0, 0.253);
+        }
+
+        .right {
+            left: 950px;
+        }
+
+        .anime {
+            float: left;
+            width: 500px;
+            height: 275px;
+            z-index: -2;
+            text-align: left;
+        }
+
+        .caratula {
+            float: left;
+            height: 200px;
+            width: 150px;
+            padding: 25px;
+        }
+
+        .info {
+            float: left;
+            width: 225px;
+        }
+
+        .popularidad {
+            position: absolute;
+            height: 25px;
+            background-color: rgb(255, 230, 0);
+            z-index: -1;
+        }
+
+        .mini {
+            font-size: 10px;
+        }
+
+        #bodyContent {
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            height: 100%;
+            z-index: -10;
+        }
+
+        #header {
+            position: fixed;
+            width: 100%;
+            height: 50px;
+            padding: 1px;
+            background-color: rgb(15, 15, 15);
+            border-bottom: double 3px rgb(241, 255, 40);
+            z-index: 50;
+        }
+
+        #header * {
+            padding-left: 10px;
+            margin: 0px;
+            color: rgb(241, 255, 40);
+        }
+
+        #header h1 {
+            margin: 8px;
+        }
+
+        #content {
+            margin: auto;
+            margin-top: 50px;
+            width: 1050px;
+            text-align: center;
+            background-color: rgba(255, 255, 255);
+            z-index: -5;
+        }
+
+        #floatRight {
+            padding-top: 8px;
+            padding-right: 30px;
+        }
+
+        #floatRight img {
+            padding-left: 10px;
+            margin: 0px;
+            color: rgb(241, 255, 40);
+            float: right;
+            height: 25px;
+        }
+
+        #floatRight input {
+            padding-left: 10px;
+            margin: 0px;
+            color: rgb(0, 0, 0);
+            float: right;
+            height: 25px;
+        }
+
+        #floatLeft * {
+            padding-left: 10px;
+            margin: 0px;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            font-variant: small-caps;
+            color: rgb(241, 255, 40);
+            float: left;
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div id="bodyContent">
+        <div id="header">
+            <div id="floatLeft">
+                <div id="Menu">
+                    <img src="Imagenes/menu.png">
+                </div>
+                <div id="Home">
+                    <img src="Imagenes/logo2.png">
+                    <h1>AniList API Info</h1>
+                </div>
+            </div>
+            <div id="floatRight">
+                <img src="Imagenes/lupa.png" id="searchImage">
+                <input type="text" id="searchInput">
+            </div>
+        </div>
+        <div id="content">
+        </div>
+    </div>
+</body>
+</html>
